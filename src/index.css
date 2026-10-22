@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-lavender font-sans text-slate-800 antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-serif;
+  }
+}
+
+/* Leaflet popups inherit app fonts */
+.leaflet-container {
+  font-family: Inter, system-ui, sans-serif;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 16px;
+}
