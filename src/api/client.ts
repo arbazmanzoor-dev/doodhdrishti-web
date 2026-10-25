@@ -1,5 +1,7 @@
+
 import axios, { AxiosError } from 'axios';
 import { mock } from '../mocks/handlers';
+
 import type {
   ApiError,
   Centre,
@@ -16,12 +18,28 @@ import type {
   StatsSummary,
   TrendPoint,
 } from '../types';
+
 import { ENDPOINTS } from './endpoints';
 
-export const USE_MOCK = (import.meta.env.VITE_USE_MOCK ?? 'true') !== 'false';
+// =====================================================
+// Configuration
+// =====================================================
 
-// ---------- Token store: in memory, mirrored to localStorage ----------
+export const USE_MOCK =
+  (import.meta.env.VITE_USE_MOCK ?? 'true').toLowerCase() !== 'false';
+
+const API_BASE_URL = (
+  import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+).replace(/\/+$/, '');
+
+const REQUEST_TIMEOUT = 10000;
+
+// =====================================================
+// Token storage
+// =====================================================
+
 const TOKEN_KEY = 'dd_token';
+
 let memoryToken: string | null = null;
 
 function safeStorage(): Storage | null {
@@ -34,83 +52,225 @@ function safeStorage(): Storage | null {
 
 export const tokenStore = {
   get(): string | null {
-    if (memoryToken) return memoryToken;
+    if (memoryToken) {
+      return memoryToken;
+    }
+
     memoryToken = safeStorage()?.getItem(TOKEN_KEY) ?? null;
     return memoryToken;
   },
-  set(token: string | null) {
+
+  set(token: string | null): void {
     memoryToken = token;
-    const s = safeStorage();
-    if (!s) return;
-    if (token) s.setItem(TOKEN_KEY, token);
-    else s.removeItem(TOKEN_KEY);
+
+    const storage = safeStorage();
+
+    if (!storage) {
+      return;
+    }
+
+    try {
+      if (token) {
+        storage.setItem(TOKEN_KEY, token);
+      } else {
+        storage.removeItem(TOKEN_KEY);
+      }
+    } catch {
+      // Continue using the in-memory token if storage is unavailable.
+    }
   },
 };
 
-// ---------- Axios instance ----------
+// =====================================================
+// Axios instance
+// =====================================================
+
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000',
-  timeout: 30_000,
+  baseURL: API_BASE_URL,
+  timeout: REQUEST_TIMEOUT,
+  headers: {
+    Accept: 'application/json',
+  },
 });
 
+// Attach the login token to authenticated requests.
 http.interceptors.request.use((config) => {
   const token = tokenStore.get();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
+// =====================================================
+// Authentication error handling
+// =====================================================
+
 let onUnauthorized: (() => void) | null = null;
-/** AuthContext registers a callback so a 401 from the backend logs the user out. */
-export function setUnauthorizedHandler(fn: (() => void) | null) {
+
+/**
+ * AuthContext can register a callback to handle expired
+ * or invalid authentication tokens.
+ */
+export function setUnauthorizedHandler(
+  fn: (() => void) | null,
+): void {
   onUnauthorized = fn;
 }
 
 http.interceptors.response.use(
-  (r) => r,
-  (err: AxiosError<{ message?: string; detail?: string }>) => {
-    if (err.response?.status === 401) onUnauthorized?.();
-    return Promise.reject(err);
+  (response) => response,
+  (error: AxiosError<{ message?: string; detail?: string }>) => {
+    if (error.response?.status === 401) {
+      onUnauthorized?.();
+    }
+
+    return Promise.reject(error);
   },
 );
 
-/** Normalises axios errors, mock errors and anything else into a user-facing message. */
-export function toApiError(err: unknown): ApiError {
-  if (axios.isAxiosError(err)) {
-    const data = err.response?.data as { message?: string; detail?: string } | undefined;
+// =====================================================
+// API error formatting
+// =====================================================
+
+export function toApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<{
+      message?: string;
+      detail?: string;
+    }>;
+
+    const data = axiosError.response?.data;
+
+    let message: string;
+
+    if (data?.message || data?.detail) {
+      message = data.message ?? data.detail ?? 'Request failed.';
+    } else if (axiosError.code === 'ECONNABORTED') {
+      message = 'The server took too long to respond.';
+    } else if (axiosError.response) {
+      message = `Request failed (${axiosError.response.status}).`;
+    } else {
+      message =
+        'Cannot reach the server. Check that the backend is running.';
+    }
+
     return {
-      status: err.response?.status,
-      message:
-        data?.message ??
-        data?.detail ??
-        (err.code === 'ECONNABORTED' ? 'The server took too long to respond.' : err.response ? `Request failed (${err.response.status}).` : 'Cannot reach the server. Check your connection.'),
+      status: axiosError.response?.status,
+      message,
     };
   }
-  if (err instanceof Error) return { message: err.message, status: (err as { status?: number }).status };
-  return { message: 'Something went wrong.' };
+
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      status: (error as Error & { status?: number }).status,
+    };
+  }
+
+  return {
+    message: 'Something went wrong.',
+  };
 }
 
-// ---------- Typed API ----------
+// =====================================================
+// Real backend API
+// =====================================================
+
 const real = {
+  // POST /auth/login
   login: (body: LoginRequest) =>
-    http.post<LoginResponse>(ENDPOINTS.login, { email: body.email, password: body.password }).then((r) => r.data),
-  predict: ({ image, farmer_id, centre_id }: PredictRequest) => {
+    http
+      .post<LoginResponse>(ENDPOINTS.login, {
+        email: body.email,
+        password: body.password,
+      })
+      .then((response) => response.data),
+
+  // POST /predict
+  predict: ({
+    image,
+    farmer_id,
+    centre_id,
+  }: PredictRequest) => {
     const form = new FormData();
+
     form.append('image', image);
     form.append('farmer_id', farmer_id);
     form.append('centre_id', centre_id);
-    return http.post<PredictResponse>(ENDPOINTS.predict, form).then((r) => r.data);
+
+    return http
+      .post<PredictResponse>(ENDPOINTS.predict, form)
+      .then((response) => response.data);
   },
-  confirmSample: (id: string) => http.post<Sample>(ENDPOINTS.confirmSample(id)).then((r) => r.data),
-  listSamples: (q: SampleQuery) => http.get<Paginated<Sample>>(ENDPOINTS.samples, { params: q }).then((r) => r.data),
-  getSample: (id: string) => http.get<Sample>(ENDPOINTS.sample(id)).then((r) => r.data),
-  listFarmers: () => http.get<FarmerSummary[]>(ENDPOINTS.farmers).then((r) => r.data),
-  getFarmer: (id: string) => http.get<FarmerDetail>(ENDPOINTS.farmer(id)).then((r) => r.data),
-  listCentres: () => http.get<Centre[]>(ENDPOINTS.centres).then((r) => r.data),
-  statsSummary: () => http.get<StatsSummary>(ENDPOINTS.statsSummary).then((r) => r.data),
-  statsTrends: (days = 30) => http.get<TrendPoint[]>(ENDPOINTS.statsTrends, { params: { days } }).then((r) => r.data),
-  statsHotspots: () => http.get<Hotspot[]>(ENDPOINTS.statsHotspots).then((r) => r.data),
+
+  // POST /samples/:id/confirm
+  confirmSample: (id: string) =>
+    http
+      .post<Sample>(ENDPOINTS.confirmSample(id))
+      .then((response) => response.data),
+
+  // GET /samples
+  listSamples: (query: SampleQuery) =>
+    http
+      .get<Paginated<Sample>>(ENDPOINTS.samples, {
+        params: query,
+      })
+      .then((response) => response.data),
+
+  // GET /samples/:id
+  getSample: (id: string) =>
+    http
+      .get<Sample>(ENDPOINTS.sample(id))
+      .then((response) => response.data),
+
+  // GET /farmers
+  listFarmers: () =>
+    http
+      .get<FarmerSummary[]>(ENDPOINTS.farmers)
+      .then((response) => response.data),
+
+  // GET /farmers/:id
+  getFarmer: (id: string) =>
+    http
+      .get<FarmerDetail>(ENDPOINTS.farmer(id))
+      .then((response) => response.data),
+
+  // GET /centres
+  listCentres: () =>
+    http
+      .get<Centre[]>(ENDPOINTS.centres)
+      .then((response) => response.data),
+
+  // GET /stats/summary
+  statsSummary: () =>
+    http
+      .get<StatsSummary>(ENDPOINTS.statsSummary)
+      .then((response) => response.data),
+
+  // GET /stats/trends
+  statsTrends: (days = 30) =>
+    http
+      .get<TrendPoint[]>(ENDPOINTS.statsTrends, {
+        params: { days },
+      })
+      .then((response) => response.data),
+
+  // GET /stats/hotspots
+  statsHotspots: () =>
+    http
+      .get<Hotspot[]>(ENDPOINTS.statsHotspots)
+      .then((response) => response.data),
 };
 
 export type Api = typeof real;
 
+// =====================================================
+// Active API selection
+// =====================================================
+
+// VITE_USE_MOCK=true  -> use local mock handlers
+// VITE_USE_MOCK=false -> use the real Python backend
 export const api: Api = USE_MOCK ? mock : real;
