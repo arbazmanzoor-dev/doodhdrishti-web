@@ -1,3 +1,4 @@
+
 import { ArrowDownUp, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { Card } from '../components/ui/Card';
 import { Input, Select } from '../components/ui/Field';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/States';
+import { useLanguage } from '../context/LanguageContext';
 import { useAsync } from '../hooks/useAsync';
 import { cx, formatDate, shortCentre } from '../lib';
 import type { FarmerSummary } from '../types';
@@ -19,6 +21,7 @@ function PureBadge({ pct }: { pct: number }) {
 }
 
 export default function Farmers() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const farmers = useAsync(() => Promise.all([api.listFarmers(), api.listCentres()]), []);
   const [search, setSearch] = useState('');
@@ -27,12 +30,12 @@ export default function Farmers() {
   const centreName = useMemo(() => new Map(farmers.data?.[1].map((c) => [c.id, c.name])), [farmers.data]);
   const rows = useMemo(() => {
     const list = farmers.data?.[0] ?? [];
-    const t = search.trim().toLowerCase();
-    const filtered = t ? list.filter((f) => f.name.toLowerCase().includes(t) || f.village.toLowerCase().includes(t) || f.id.includes(t)) : list;
+    const term = search.trim().toLowerCase();
+    const filtered = term ? list.filter((f) => f.name.toLowerCase().includes(term) || f.village.toLowerCase().includes(term) || f.id.includes(term)) : list;
     const cmp: Record<SortKey, (a: FarmerSummary, b: FarmerSummary) => number> = {
       name: (a, b) => a.name.localeCompare(b.name),
       total_samples: (a, b) => b.total_samples - a.total_samples,
-      pure_pct: (a, b) => a.pure_pct - b.pure_pct, // worst first — that's who needs attention
+      pure_pct: (a, b) => a.pure_pct - b.pure_pct,
       last_test_at: (a, b) => (b.last_test_at ?? '').localeCompare(a.last_test_at ?? ''),
     };
     return [...filtered].sort(cmp[sort]);
@@ -40,20 +43,20 @@ export default function Farmers() {
 
   return (
     <>
-      <PageHeader title="Farmers" subtitle="Quality history for every supplier. Lowest purity first by default." />
+      <PageHeader title={t('farmersTitle')} subtitle={t('farmersSubtitle')} />
       <Card className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search by name, village or ID" aria-label="Search farmers" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input placeholder={t('searchFarmers')} aria-label={t('searchFarmers')} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <label className="flex items-center gap-2 text-sm text-slate-500">
           <ArrowDownUp className="h-4 w-4" aria-hidden />
-          <span className="sr-only sm:not-sr-only">Sort</span>
+          <span className="sr-only sm:not-sr-only">{t('sort')}</span>
           <Select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="sm:w-48">
-            <option value="pure_pct">% pure (lowest first)</option>
-            <option value="total_samples">Most samples</option>
-            <option value="last_test_at">Recently tested</option>
-            <option value="name">Name A–Z</option>
+            <option value="pure_pct">{t('pureLowest')}</option>
+            <option value="total_samples">{t('mostSamples')}</option>
+            <option value="last_test_at">{t('recentlyTested')}</option>
+            <option value="name">{t('nameAZ')}</option>
           </Select>
         </label>
       </Card>
@@ -64,19 +67,19 @@ export default function Farmers() {
         ) : farmers.loading ? (
           <div className="space-y-2 p-5">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-12" />)}</div>
         ) : rows.length === 0 ? (
-          <EmptyState title="No farmers found" />
+          <EmptyState title={t('noFarmers')} />
         ) : (
           <>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-lavender text-xs uppercase tracking-wide text-slate-500">
-                    <th className="px-5 py-3 font-semibold">Farmer</th>
-                    <th className="px-3 py-3 font-semibold">Centre</th>
-                    <th className="px-3 py-3 text-right font-semibold">Samples</th>
-                    <th className="px-3 py-3 text-right font-semibold">% pure</th>
-                    <th className="px-3 py-3 font-semibold">Last test</th>
-                    <th className="px-5 py-3 font-semibold">Water % trend</th>
+                    <th className="px-5 py-3 font-semibold">{t('farmer')}</th>
+                    <th className="px-3 py-3 font-semibold">{t('centre')}</th>
+                    <th className="px-3 py-3 text-right font-semibold">{t('samples')}</th>
+                    <th className="px-3 py-3 text-right font-semibold">{t('pure')}</th>
+                    <th className="px-3 py-3 font-semibold">{t('lastTest')}</th>
+                    <th className="px-5 py-3 font-semibold">{t('waterTrend')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -102,7 +105,7 @@ export default function Farmers() {
                   <Link to={`/farmers/${f.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-lavender/60">
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-navy">{f.name}</p>
-                      <p className="truncate text-xs text-slate-500">{f.village} · {f.total_samples} samples · {f.last_test_at ? formatDate(f.last_test_at) : '—'}</p>
+                      <p className="truncate text-xs text-slate-500">{f.village} · {f.total_samples} {t('samples')} · {f.last_test_at ? formatDate(f.last_test_at) : '—'}</p>
                     </div>
                     <Sparkline values={f.trend} />
                     <PureBadge pct={f.pure_pct} />

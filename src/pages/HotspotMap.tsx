@@ -1,3 +1,4 @@
+
 import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
@@ -6,17 +7,10 @@ import { api } from '../api/client';
 import { Card, CardHeader } from '../components/ui/Card';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ErrorState, Spinner } from '../components/ui/States';
+import { useLanguage } from '../context/LanguageContext';
 import { useAsync } from '../hooks/useAsync';
 import { VERDICT_COLOR, cx, shortCentre } from '../lib';
 import type { Hotspot } from '../types';
-
-// Adulteration-rate bands for marker colour. Reuses the status colours with an icon + label in the legend.
-const BANDS = [
-  { max: 8, label: 'Low (< 8%)', color: VERDICT_COLOR.pure, Icon: CheckCircle2 },
-  { max: 15, label: 'Elevated (8–15%)', color: VERDICT_COLOR.suspicious, Icon: AlertTriangle },
-  { max: Infinity, label: 'Hotspot (≥ 15%)', color: VERDICT_COLOR.adulterated, Icon: XCircle },
-];
-const bandFor = (pct: number) => BANDS.find((b) => pct < b.max)!;
 
 const KARNATAKA_CENTER: [number, number] = [14.2, 76.4];
 
@@ -29,18 +23,26 @@ function FlyTo({ target }: { target: Hotspot | null }) {
 }
 
 export default function HotspotMap() {
+  const { t } = useLanguage();
   const hotspots = useAsync(() => api.statsHotspots(), []);
   const [focus, setFocus] = useState<Hotspot | null>(null);
   const ranked = useMemo(() => [...(hotspots.data ?? [])].sort((a, b) => b.adulterated_pct - a.adulterated_pct), [hotspots.data]);
   const maxSamples = Math.max(1, ...ranked.map((h) => h.total_samples));
 
+  const bands = [
+    { max: 8, label: t('lowRisk'), color: VERDICT_COLOR.pure, Icon: CheckCircle2 },
+    { max: 15, label: t('elevatedRisk'), color: VERDICT_COLOR.suspicious, Icon: AlertTriangle },
+    { max: Infinity, label: t('hotspotRisk'), color: VERDICT_COLOR.adulterated, Icon: XCircle },
+  ];
+  const bandFor = (pct: number) => bands.find((b) => pct < b.max)!;
+
   return (
     <>
-      <PageHeader title="Hotspot map" subtitle="Collection centres coloured by share of samples flagged adulterated." />
+      <PageHeader title={t('hotspotTitle')} subtitle={t('hotspotSubtitle')} />
       {hotspots.error ? (
         <Card><ErrorState message={hotspots.error} onRetry={hotspots.reload} /></Card>
       ) : hotspots.loading ? (
-        <Card><Spinner label="Loading centres…" /></Card>
+        <Card><Spinner label={t('loadingCentres')} /></Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <Card className="relative isolate overflow-hidden">
@@ -62,13 +64,13 @@ export default function HotspotMap() {
                     <Popup>
                       <div className="min-w-[200px]">
                         <p className="font-serif text-base font-semibold text-navy">{h.centre_name}</p>
-                        <p className="text-xs text-slate-500">{h.district} district</p>
+                        <p className="text-xs text-slate-500">{h.district} {t('district')}</p>
                         <dl className="mt-2 space-y-1 text-sm">
-                          <div className="flex justify-between gap-4"><dt className="text-slate-500">Samples</dt><dd className="font-semibold tabular-nums">{h.total_samples.toLocaleString('en-IN')}</dd></div>
-                          <div className="flex justify-between gap-4"><dt className="text-slate-500">Adulterated</dt><dd className="font-semibold tabular-nums" style={{ color: band.color }}>{h.adulterated_pct}%</dd></div>
-                          <div className="flex justify-between gap-4"><dt className="text-slate-500">Avg water</dt><dd className="font-semibold tabular-nums">{h.avg_water_pct}%</dd></div>
+                          <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('samples')}</dt><dd className="font-semibold tabular-nums">{h.total_samples.toLocaleString('en-IN')}</dd></div>
+                          <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('adulterated')}</dt><dd className="font-semibold tabular-nums" style={{ color: band.color }}>{h.adulterated_pct}%</dd></div>
+                          <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('averageWaterShort')}</dt><dd className="font-semibold tabular-nums">{h.avg_water_pct}%</dd></div>
                         </dl>
-                        <Link to={`/samples`} className="mt-2 inline-block text-xs font-medium text-purple">View samples →</Link>
+                        <Link to="/samples" className="mt-2 inline-block text-xs font-medium text-purple">{t('viewSamples')} →</Link>
                       </div>
                     </Popup>
                   </CircleMarker>
@@ -76,19 +78,19 @@ export default function HotspotMap() {
               })}
             </MapContainer>
             <div className="pointer-events-none absolute bottom-3 left-3 z-[500] rounded-xl bg-white/95 p-3 text-xs shadow-soft">
-              <p className="mb-1.5 font-semibold text-navy">Adulteration rate</p>
-              {BANDS.map((b) => (
+              <p className="mb-1.5 font-semibold text-navy">{t('adulterationRate')}</p>
+              {bands.map((b) => (
                 <p key={b.label} className="flex items-center gap-2 text-slate-600">
                   <span className="h-3 w-3 rounded-full ring-2 ring-white" style={{ background: b.color }} />
                   {b.label}
                 </p>
               ))}
-              <p className="mt-1.5 text-slate-400">Size = samples tested</p>
+              <p className="mt-1.5 text-slate-400">{t('sizeSamples')}</p>
             </div>
           </Card>
 
           <Card className="overflow-hidden">
-            <CardHeader title="Centres by risk" subtitle="Tap a centre to locate it" />
+            <CardHeader title={t('centresByRisk')} subtitle={t('tapCentre')} />
             <ul className="mt-3 max-h-[480px] divide-y divide-lavender overflow-y-auto">
               {ranked.map((h, i) => {
                 const band = bandFor(h.adulterated_pct);
@@ -102,7 +104,7 @@ export default function HotspotMap() {
                       <band.Icon className="h-4 w-4 shrink-0" style={{ color: band.color }} aria-label={band.label} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-navy">{shortCentre(h.centre_name)}</span>
-                        <span className="block text-xs text-slate-500">{h.district} · {h.total_samples} samples</span>
+                        <span className="block text-xs text-slate-500">{h.district} · {h.total_samples} {t('samples')}</span>
                       </span>
                       <span className="text-sm font-semibold tabular-nums text-slate-800">{h.adulterated_pct}%</span>
                     </button>
