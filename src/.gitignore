@@ -1,0 +1,11 @@
+.venv/
+.venv312/
+.vscode/
+node_modules/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+src/server/db.json
+dist/
