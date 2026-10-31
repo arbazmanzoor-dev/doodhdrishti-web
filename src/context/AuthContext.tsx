@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, setUnauthorizedHandler, tokenStore } from '../api/client';
-import type { LoginRequest, User } from '../types';
+import type { LoginRequest, LoginResponse, SignupRequest, User } from '../types';
 
 const USER_KEY = 'dd_user';
 
@@ -9,6 +9,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   login: (req: LoginRequest) => Promise<void>;
+  signup: (req: SignupRequest) => Promise<void>;
   logout: () => void;
   updateUser: (patch: Partial<User>) => void;
 }
@@ -49,13 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [logout]);
 
-  const login = useCallback(async (req: LoginRequest) => {
-    const res = await api.login(req);
+  const startSession = useCallback((res: LoginResponse) => {
     tokenStore.set(res.token);
     storeUser(res.user);
     setToken(res.token);
     setUser(res.user);
   }, []);
+
+  const login = useCallback(async (req: LoginRequest) => {
+    startSession(await api.login(req));
+  }, [startSession]);
+
+  // A new account is signed in straight away.
+  const signup = useCallback(async (req: SignupRequest) => {
+    startSession(await api.signup(req));
+  }, [startSession]);
 
   const updateUser = useCallback((patch: Partial<User>) => {
     setUser((u) => {
@@ -67,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, isAuthenticated: Boolean(token && user), login, logout, updateUser }),
-    [user, token, login, logout, updateUser],
+    () => ({ user, token, isAuthenticated: Boolean(token && user), login, signup, logout, updateUser }),
+    [user, token, login, signup, logout, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
