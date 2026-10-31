@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+# Generated; rebuild with `make all`
+outputs/
+data/labels.csv
+# Trained models are binary and can run code when loaded: share them deliberately, not by default
+models/*.joblib
