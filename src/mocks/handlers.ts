@@ -5,14 +5,17 @@ import type {
   Hotspot,
   LoginRequest,
   LoginResponse,
+  SignupRequest,
   Paginated,
   PredictRequest,
   PredictResponse,
+  Role,
   Sample,
   SampleQuery,
   StatsSummary,
   TrendPoint,
 } from '../types';
+import { isValidEmail } from '../lib';
 import { centres, farmers, sampleImage, samples, verdictFor } from './data';
 
 const delay = (ms = 250 + Math.random() * 350) => new Promise((r) => setTimeout(r, ms));
@@ -29,6 +32,67 @@ class MockHttpError extends Error {
   }
 }
 
+// ---------- Demo accounts ----------
+// Saved in this browser's localStorage. Passwords are stored only as salted SHA-256 hashes.
+// This is a stand-in for the real backend's accounts, not real security.
+
+interface MockAccount {
+  id: string;
+  name: string;
+  role: Role;
+  salt: string;
+  hash: string;
+}
+
+const ACCOUNTS_KEY = 'dd_mock_accounts';
+export const DEMO_ACCOUNT = { email: 'demo@doodhdrishti.in', password: 'demo1234', name: 'Demo Officer', role: 'cooperative_admin' as Role };
+
+function randomSalt(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password: string, salt: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`${salt}:${password}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function loadAccounts(): Promise<Record<string, MockAccount>> {
+  let accounts: Record<string, MockAccount> = {};
+  try {
+    accounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) ?? '{}');
+  } catch {
+    /* storage unavailable or corrupt: start fresh */
+  }
+  if (!accounts[DEMO_ACCOUNT.email]) {
+    const salt = randomSalt();
+    accounts[DEMO_ACCOUNT.email] = {
+      id: 'u001',
+      name: DEMO_ACCOUNT.name,
+      role: DEMO_ACCOUNT.role,
+      salt,
+      hash: await hashPassword(DEMO_ACCOUNT.password, salt),
+    };
+    saveAccounts(accounts);
+  }
+  return accounts;
+}
+
+function saveAccounts(accounts: Record<string, MockAccount>) {
+  try {
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch {
+    /* storage unavailable: accounts last for this page load only */
+  }
+}
+
+function sessionFor(email: string, a: MockAccount): LoginResponse {
+  return {
+    token: `mock.${btoa(email)}.${Date.now()}`,
+    user: { id: a.id, name: a.name, email, role: a.role, centre_id: 'c01' },
+  };
+}
+
 // Predictions waiting for "Save to record".
 const pending = new Map<string, Sample>();
 let nextId = samples.length + 1;
@@ -37,6 +101,37 @@ let nextId = samples.length + 1;
  * Rough stand-in for the real model: reads the photo's pixels. Brighter, more opaque
  * (whiter) images read as purer milk; dim / translucent ones read as diluted.
  */
+/** Otsu's threshold over the gray values whose index passes `include`. */
+function otsu(gray: Float32Array, include: (i: number) => boolean): number {
+  const hist = new Array<number>(256).fill(0);
+  let total = 0;
+  for (let i = 0; i < gray.length; i++) {
+    if (!include(i)) continue;
+    hist[Math.min(255, Math.max(0, Math.round(gray[i])))]++;
+    total++;
+  }
+  if (total === 0) return 255;
+  let sumAll = 0;
+  for (let v = 0; v < 256; v++) sumAll += v * hist[v];
+  let sumB = 0;
+  let wB = 0;
+  let best = 0;
+  let threshold = 0;
+  for (let v = 0; v < 256; v++) {
+    wB += hist[v];
+    if (wB === 0) continue;
+    const wF = total - wB;
+    if (wF === 0) break;
+    sumB += v * hist[v];
+    const between = wB * wF * (sumB / wB - (sumAll - sumB) / wF) ** 2;
+    if (between > best) {
+      best = between;
+      threshold = v;
+    }
+  }
+  return threshold;
+}
+
 async function analyseImage(file: File): Promise<{ water: number; starch: number; confidence: number }> {
   const url = URL.createObjectURL(file);
   try {
@@ -46,48 +141,102 @@ async function analyseImage(file: File): Promise<{ water: number; starch: number
       el.onerror = () => reject(new MockHttpError(422, 'Could not read this image. Try a clear JPG or PNG photo.'));
       el.src = url;
     });
+    const scale = 200 / Math.max(img.naturalWidth, img.naturalHeight);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
     const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new MockHttpError(500, 'Image analysis is not supported in this browser.');
-    ctx.drawImage(img, 0, 0, 64, 64);
-    const { data } = ctx.getImageData(0, 0, 64, 64);
-    let lum = 0;
-    let yellow = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
-      lum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      yellow += (r + g) / 2 - b;
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    const n = w * h;
+    const gray = new Float32Array(n);
+    for (let i = 0; i < n; i++) gray[i] = 0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2];
+
+    // Same idea as the ML pipeline's ROI step: threshold the lit cup off the black
+    // background, then the brighter milk surface off the cup walls.
+    const t1 = otsu(gray, () => true);
+    const t2 = otsu(gray, (i) => gray[i] > t1);
+    const milk: number[] = [];
+    for (let i = 0; i < n; i++) if (gray[i] > t1 && gray[i] > t2) milk.push(i);
+    if (milk.length < n * 0.01) {
+      throw new MockHttpError(422, "Couldn't find the milk in this photo. Take it from above, flash on, on a dark background.");
     }
-    const px = data.length / 4;
-    const brightness = lum / px / 255; // 0..1
-    const yellowness = Math.max(0, yellow / px / 255); // starch tends to tint slightly yellow
-    const water = Math.min(35, Math.max(0, (0.85 - brightness) * 40 + (Math.random() - 0.5) * 2));
-    const starch = Math.min(3, Math.max(0, yellowness * 8 + (Math.random() - 0.5) * 0.2));
-    const confidence = Math.min(0.99, 0.78 + Math.abs(brightness - 0.55) * 0.4 + Math.random() * 0.05);
-    return { water: round1(water), starch: round1(starch), confidence: Math.round(confidence * 100) / 100 };
+
+    // Inner circle around the milk's centre (70% of its equivalent radius), to skip the meniscus edge.
+    let cx = 0;
+    let cy = 0;
+    for (const i of milk) {
+      cx += i % w;
+      cy += Math.floor(i / w);
+    }
+    cx /= milk.length;
+    cy /= milk.length;
+    const r = Math.sqrt(milk.length / Math.PI) * 0.7;
+    let roi = milk.filter((i) => (i % w - cx) ** 2 + (Math.floor(i / w) - cy) ** 2 <= r * r);
+    if (roi.length < 30) roi = milk;
+
+    // Drop the brightest 1% (glare, bubbles).
+    const sorted = roi.map((i) => gray[i]).sort((a, b) => a - b);
+    const glare = sorted[Math.floor(sorted.length * 0.99)];
+    roi = roi.filter((i) => gray[i] <= glare);
+
+    const brightness = roi.reduce((s, i) => s + gray[i], 0) / roi.length / 255; // 0..1
+    // A dark or flat photo has no bright milk surface; the thresholds above then
+    // just pick the least-dark pixels. Don't turn that into a reading.
+    if (brightness < 0.3) {
+      throw new MockHttpError(422, "Couldn't find the milk in this photo. Take it from above, flash on, on a dark background.");
+    }
+    // Pure milk photographed this way measures about 0.82-0.96. Watered milk lets the
+    // black background show through, so it reads darker. Rough rule, not a trained model.
+    const water = Math.min(35, Math.max(0, (0.8 - brightness) * 60));
+    // Colour alone can't measure starch, so the demo doesn't pretend to.
+    const starch = 0;
+    const confidence = 0.6 + Math.min(0.3, Math.abs(water - 5) / 40);
+    return { water: round1(water), starch, confidence: Math.round(confidence * 100) / 100 };
   } finally {
     URL.revokeObjectURL(url);
   }
 }
 
 export const mock = {
-  async login({ email, role }: LoginRequest): Promise<LoginResponse> {
+  async signup({ name, email, password, role }: SignupRequest): Promise<LoginResponse> {
     await delay();
-    const local = email.split('@')[0] || 'demo';
-    const name = local
-      .split(/[._-]/)
-      .filter(Boolean)
-      .map((p) => p[0].toUpperCase() + p.slice(1))
-      .join(' ');
-    return {
-      token: `mock.${btoa(email)}.${Date.now()}`,
-      user: { id: 'u001', name: name || 'Demo User', email, role: role ?? 'cooperative_admin', centre_id: 'c01' },
+    const cleanEmail = email.trim().toLowerCase();
+    if (!name.trim()) throw new MockHttpError(400, 'Enter your full name.');
+    if (!isValidEmail(cleanEmail)) throw new MockHttpError(400, 'Enter a valid email address, like name@cooperative.in.');
+    if (password.length < 8) throw new MockHttpError(400, 'Password must be at least 8 characters.');
+    const accounts = await loadAccounts();
+    if (accounts[cleanEmail]) throw new MockHttpError(409, 'An account with this email already exists. Sign in instead.');
+    const salt = randomSalt();
+    const account: MockAccount = {
+      id: `u${Date.now().toString(36)}`,
+      name: name.trim(),
+      role,
+      salt,
+      hash: await hashPassword(password, salt),
     };
+    accounts[cleanEmail] = account;
+    saveAccounts(accounts);
+    return sessionFor(cleanEmail, account);
   },
 
-  async predict({ image, farmer_id, centre_id }: PredictRequest): Promise<PredictResponse> {
+  async login({ email, password }: LoginRequest): Promise<LoginResponse> {
+    await delay();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isValidEmail(cleanEmail)) throw new MockHttpError(400, 'Enter a valid email address, like name@cooperative.in.');
+    const account = (await loadAccounts())[cleanEmail];
+    if (!account) throw new MockHttpError(401, 'No account with this email. Sign up first.');
+    if ((await hashPassword(password, account.salt)) !== account.hash) {
+      throw new MockHttpError(401, 'Incorrect password.');
+    }
+    return sessionFor(cleanEmail, account);
+  },
+
+  async predict({ image, farmer_id, centre_id, milk_type }: PredictRequest): Promise<PredictResponse> {
     if (!image.type.startsWith('image/')) throw new MockHttpError(415, 'Please upload an image file (JPG or PNG).');
     const farmer = farmers.find((f) => f.id === farmer_id);
     const centre = centres.find((c) => c.id === centre_id);
@@ -113,6 +262,7 @@ export const mock = {
       confidence,
       image_url: imageUrl,
       created_at: new Date().toISOString(),
+      milk_type,
     };
     pending.set(sample.id, sample);
     return {
