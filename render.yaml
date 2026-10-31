@@ -1,0 +1,43 @@
+# Render Blueprint: deploys the backend API and the website together.
+# On render.com: New → Blueprint → pick this repo. See README "Deploying on Render".
+services:
+  # Python backend (server/main.py)
+  - type: web
+    name: doodhdrishti-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r server/requirements.txt
+    startCommand: python server/main.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DD_JWT_SECRET
+        generateValue: true          # Render creates a random secret once and keeps it
+      - key: DD_ALLOWED_ORIGINS      # only the website below may call the API
+        fromService:
+          type: web
+          name: doodhdrishti-web
+          property: host
+
+  # React website (static build of src/)
+  - type: web
+    name: doodhdrishti-web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite                # let /dashboard, /login, ... load the app on refresh
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_USE_MOCK           # "false" = use the backend above; "true" = demo data in the browser
+        value: "false"
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: doodhdrishti-api
+          property: host
