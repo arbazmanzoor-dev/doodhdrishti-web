@@ -1,6 +1,101 @@
-node_modules
-dist
-.env
-.env.local
+
+# ==========================================
+# Node.js / React / Vite
+# ==========================================
+
+node_modules/
+dist/
+dist-ssr/
 *.tsbuildinfo
+
+# ==========================================
+# Environment variables and secrets
+# ==========================================
+
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Python virtual environments
+# ==========================================
+
+.venv/
+.venv*/
+venv/
+ENV/
+env/
+ml_env/
+
+# ==========================================
+# Python cache and compiled files
+# ==========================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==========================================
+# Python packaging
+# ==========================================
+
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+MANIFEST
+
+# ==========================================
+# IDE and editor files
+# ==========================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# Operating system files
+# ==========================================
+
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# Logs and temporary files
+# ==========================================
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.tmp
+*.bak
+
+# ==========================================
+# Test and coverage output
+# ==========================================
+
+coverage/
+.nyc_output/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ==========================================
+# Local database backups
+# ==========================================
+
+*.sqlite3-journal
+*.db-journal
