@@ -68,7 +68,7 @@ export interface Sample {
 export interface LoginRequest {
   email: string;
   password: string;
-  /** Not part of the backend contract; used by the mock to pick the demo user's role. */
+  /** Role picked on the login page. Optional; the backend may ignore it once accounts carry their own role. */
   role?: Role;
 }
 

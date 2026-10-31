@@ -186,6 +186,8 @@ const real = {
       .post<LoginResponse>(ENDPOINTS.login, {
         email: body.email,
         password: body.password,
+        // The backend uses this until real user accounts carry their own role.
+        role: body.role,
       })
       .then((response) => response.data),
 
