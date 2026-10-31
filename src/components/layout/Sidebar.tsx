@@ -20,6 +20,13 @@ type SidebarProps = {
   onClose?: () => void;
 };
 
+// Use exactly the same role mapping as Topbar.
+const roleKeys = {
+  cooperative_admin: 'cooperativeAdmin',
+  centre_operator: 'centreOperator',
+  food_safety_officer: 'foodSafetyOfficer',
+} as const;
+
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
@@ -59,26 +66,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     },
   ];
 
-  // Role names
-  // Direct strings avoid unsupported translation keys.
-  const roleLabel =
-    user?.role === 'cooperative_admin'
-      ? 'Cooperative Admin'
-      : user?.role === 'centre_operator'
-        ? 'Centre Operator'
-        : user?.role === 'food_safety_officer'
-          ? 'Food Safety Officer'
-          : user?.role ?? '';
+  // Translate the actual backend role.
+  const roleKey =
+    user?.role && user.role in roleKeys
+      ? roleKeys[user.role as keyof typeof roleKeys]
+      : null;
+
+  const roleLabel = roleKey
+    ? t(roleKey)
+    : user?.role ?? '';
 
   // Logout handler
   function handleLogout() {
-    // Clear token and user session.
     logout();
-
-    // Close mobile sidebar.
     onClose?.();
-
-    // Redirect to login.
     navigate('/login', { replace: true });
   }
 
@@ -94,7 +95,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         />
       )}
 
-      {/* Main sidebar */}
+      {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
@@ -179,7 +180,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             {t('teamProject')}
           </div>
 
-          {/* Logout button */}
+          {/* Logout */}
           <button
             type="button"
             onClick={handleLogout}
