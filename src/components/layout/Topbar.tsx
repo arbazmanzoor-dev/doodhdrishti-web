@@ -2,18 +2,15 @@
 import { LogOut, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { Menu } from 'lucide-react';
-import { USE_MOCK } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { useAuth } from '../../context/AuthContext';
 import { USE_MOCK } from '../../api/client';
 
 type TopbarProps = {
   onMenuClick?: () => void;
 };
 
-// Map actual backend role values to translation keys.
+// Actual backend role values mapped to translation keys.
 const roleKeys = {
   cooperative_admin: 'cooperativeAdmin',
   centre_operator: 'centreOperator',
@@ -21,11 +18,11 @@ const roleKeys = {
 } as const;
 
 export function Topbar({ onMenuClick }: TopbarProps) {
-  const { t } = useLanguage();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
-  // Get the translated role.
+  // Translate the user's actual backend role.
   const roleKey =
     user?.role && user.role in roleKeys
       ? roleKeys[user.role as keyof typeof roleKeys]
@@ -46,8 +43,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Left section */}
       <div className="flex items-center gap-3">
-
-        {/* Mobile menu */}
         <button
           type="button"
           onClick={onMenuClick}
@@ -61,20 +56,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         {USE_MOCK && (
           <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
             Demo data
-        <div>
-          <p className="text-sm font-semibold text-slate-900">
-            {t('welcome')}
-            {user?.name ? `, ${user.name.split(' ')[0]}` : ''}
-          </p>
-          <p className="text-xs text-slate-500">{t('tagline')}</p>
-        </div>
-
-        {USE_MOCK && (
-          <span
-            className="hidden rounded-full bg-saffron-light px-2.5 py-0.5 text-xs font-semibold text-saffron-dark sm:inline"
-            title="Showing built-in demo data, not the live backend. Set VITE_USE_MOCK=false in .env to use the backend."
-          >
-            {t('demoData')}
           </span>
         )}
       </div>
@@ -114,6 +95,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
             {t('logout')}
           </span>
         </button>
+
       </div>
     </header>
   );
