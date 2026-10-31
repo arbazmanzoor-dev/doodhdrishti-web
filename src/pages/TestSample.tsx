@@ -1,4 +1,4 @@
-import { CheckCircle2, ImagePlus, Loader2, RotateCcw, Save, ScanLine, X } from 'lucide-react';
+import { CheckCircle2, ImagePlus, Info, Loader2, RotateCcw, Save, ScanLine, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, toApiError } from '../api/client';
@@ -10,9 +10,10 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { ErrorState } from '../components/ui/States';
 import { VerdictBadge } from '../components/ui/VerdictBadge';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useAsync } from '../hooks/useAsync';
 import { cx, formatDateTime } from '../lib';
-import type { PredictResponse } from '../types';
+import { MILK_TYPE_LABELS, type MilkType, type PredictResponse } from '../types';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -31,6 +32,8 @@ export default function TestSample() {
   const [preview, setPreview] = useState<string | null>(null);
   const [centreId, setCentreId] = useState('');
   const [farmerId, setFarmerId] = useState('');
+  const [milkType, setMilkType] = useState<MilkType>('cow');
+  const [testedMilkType, setTestedMilkType] = useState<MilkType>('cow');
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
 
@@ -78,7 +81,8 @@ export default function TestSample() {
     setResult(null);
     setSaveState('idle');
     try {
-      setResult(await api.predict({ image: file, farmer_id: farmerId, centre_id: centreId }));
+      setResult(await api.predict({ image: file, farmer_id: farmerId, centre_id: centreId, milk_type: milkType }));
+      setTestedMilkType(milkType);
     } catch (err) {
       setError(toApiError(err).message);
     } finally {
@@ -148,7 +152,7 @@ export default function TestSample() {
             </div>
             {fileError && <p className="text-sm text-adulterated" role="alert">{fileError}</p>}
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div>
                 <Label htmlFor="centre">Collection centre</Label>
                 <Select id="centre" value={centreId} onChange={(e) => setCentreId(e.target.value)} disabled={lists.loading}>
@@ -160,6 +164,12 @@ export default function TestSample() {
                 <Select id="farmer" value={farmerId} onChange={(e) => setFarmerId(e.target.value)} disabled={lists.loading || !centreFarmers.length}>
                   {centreFarmers.length === 0 && <option value="">No farmers at this centre</option>}
                   {centreFarmers.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.village}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="milk-type">Milk type</Label>
+                <Select id="milk-type" value={milkType} onChange={(e) => setMilkType(e.target.value as MilkType)}>
+                  {(Object.keys(MILK_TYPE_LABELS) as MilkType[]).map((m) => <option key={m} value={m}>{MILK_TYPE_LABELS[m]}</option>)}
                 </Select>
               </div>
             </div>
@@ -182,7 +192,7 @@ export default function TestSample() {
               <ErrorState message={error} onRetry={file ? () => onSubmit({ preventDefault() {} } as FormEvent) : undefined} />
             </div>
           ) : result ? (
-            <ResultCard result={result} saveState={saveState} onSave={save} onReset={reset} />
+            <ResultCard result={result} milkType={testedMilkType} saveState={saveState} onSave={save} onReset={reset} />
           ) : (
             <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-2 text-center">
               <ScanLine className="h-10 w-10 text-purple-light" />
@@ -196,10 +206,16 @@ export default function TestSample() {
   );
 }
 
-function ResultCard({ result, saveState, onSave, onReset }: { result: PredictResponse; saveState: 'idle' | 'saving' | 'saved' | 'error'; onSave: () => void; onReset: () => void }) {
+function ResultCard({ result, milkType, saveState, onSave, onReset }: { result: PredictResponse; milkType: MilkType; saveState: 'idle' | 'saving' | 'saved' | 'error'; onSave: () => void; onReset: () => void }) {
   const ring = { pure: 'ring-pure/30', suspicious: 'ring-suspicious/30', adulterated: 'ring-adulterated/30' }[result.verdict];
+  const { t } = useLanguage();
   return (
     <div className="space-y-5">
+      {/* Both demo mode and the backend use a rough brightness rule until a validated model exists. */}
+      <p className="flex items-start gap-2 rounded-xl bg-saffron-light px-3 py-2 text-sm font-medium text-saffron-dark" role="note">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        {t('simulatedResult')}
+      </p>
       <div className={cx('rounded-2xl p-5 ring-2', ring)}>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verdict</p>
         <div className="mt-2"><VerdictBadge verdict={result.verdict} size="lg" /></div>
@@ -213,7 +229,7 @@ function ResultCard({ result, saveState, onSave, onReset }: { result: PredictRes
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Model confidence</p>
         <ConfidenceBar value={result.confidence} />
       </div>
-      <p className="text-xs text-slate-500">Sample {result.sample_id} · {formatDateTime(result.created_at)}</p>
+      <p className="text-xs text-slate-500">Sample {result.sample_id} · {MILK_TYPE_LABELS[milkType]} milk · {formatDateTime(result.created_at)}</p>
       <div className="flex flex-wrap gap-3">
         {saveState === 'saved' ? (
           <p className="inline-flex items-center gap-2 rounded-xl bg-pure-bg px-4 py-2.5 text-sm font-medium text-pure">
