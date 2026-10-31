@@ -28,6 +28,21 @@ In mock mode, the login page accepts any email and password. Pick a role from th
 | `VITE_API_URL`  | `http://localhost:8000` | Base URL of the backend API |
 | `VITE_USE_MOCK` | `true`                  | `true` serves every request from the in-browser mock in `src/mocks`. Set it to `false` to call `VITE_API_URL`. |
 
+## Running the full app (website + backend)
+
+The website runs on its own with demo data. To use the real backend instead:
+
+1. **Start the backend.** See the backend section for how (it runs on `http://127.0.0.1:8000` by default). Opening that address in a browser shows "DoodhDrishti Backend API is Running" when it's up.
+2. **Point the website at it.** In `.env` (copy it from `.env.example` if you don't have one), set:
+   ```
+   VITE_USE_MOCK=false
+   VITE_API_URL=http://127.0.0.1:8000
+   ```
+3. **Restart the website** (`npm run dev`). Vite only reads `.env` when it starts. The "Demo data" badge in the top bar disappears, and Settings → Connection shows "Live API".
+4. **Sign in.** For now the backend accepts any email and password and uses the role you pick on the login page.
+
+If a page says "Cannot reach the server", the backend isn't running or `VITE_API_URL` points to the wrong address. To go back to demo data, set `VITE_USE_MOCK=true` and restart.
+
 ## Mock mode
 
 `src/mocks/data.ts` builds a fixed, seeded dataset: 12 collection centres at real Karnataka coordinates, 48 farmers, and about 2,300 samples spread over 45 days. The data comes out the same on every reload, so charts don't jump around. The verdict split is roughly 69% pure, 18% suspicious, and 13% adulterated.
@@ -48,7 +63,7 @@ In mock mode, the login page accepts any email and password. Pick a role from th
 | `/samples`     | protected | Filters (date range, centre, verdict, farmer search), pagination, CSV export, detail drawer |
 | `/farmers`     | protected | Farmer list with % pure, last test, and a water % sparkline. Sortable. |
 | `/farmers/:id` | protected | Stats, quality history chart, full test table |
-| `/map`         | protected | Leaflet map with markers coloured by adulteration rate and sized by volume, plus a ranked centre list |
+| `/hotspots`    | protected | Leaflet map with markers coloured by adulteration rate and sized by volume, plus a ranked centre list |
 | `/settings`    | protected | Profile, language picker (English, Hindi, Kannada; placeholder for now), connection info |
 
 A `401` from the real API logs the user out and sends them back to `/login`.
@@ -64,8 +79,8 @@ All requests send `Authorization: Bearer <token>` once the user is logged in. Th
 ### Auth
 `POST /auth/login`
 ```json
-// request
-{ "email": "a@b.in", "password": "…" }
+// request ("role" is optional: the role picked on the login page)
+{ "email": "a@b.in", "password": "…", "role": "food_safety_officer" }
 // response
 { "token": "jwt…", "user": { "id": "u1", "name": "Priya Debnath", "email": "a@b.in", "role": "food_safety_officer", "centre_id": "c01" } }
 ```
