@@ -1,6 +1,7 @@
 /** Backend route table. Keep in sync with the API contract in README.md. */
 export const ENDPOINTS = {
   login: '/auth/login',
+  signup: '/auth/signup',
   predict: '/predict',
   samples: '/samples',
   sample: (id: string) => `/samples/${encodeURIComponent(id)}`,

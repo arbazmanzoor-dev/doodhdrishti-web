@@ -10,6 +10,7 @@ import type {
   Hotspot,
   LoginRequest,
   LoginResponse,
+  SignupRequest,
   Paginated,
   PredictRequest,
   PredictResponse,
@@ -180,6 +181,12 @@ export function toApiError(error: unknown): ApiError {
 // =====================================================
 
 const real = {
+  // POST /auth/signup
+  signup: (body: SignupRequest) =>
+    http
+      .post<LoginResponse>(ENDPOINTS.signup, body)
+      .then((response) => response.data),
+
   // POST /auth/login
   login: (body: LoginRequest) =>
     http
@@ -196,12 +203,17 @@ const real = {
     image,
     farmer_id,
     centre_id,
+    milk_type,
   }: PredictRequest) => {
     const form = new FormData();
 
     form.append('image', image);
     form.append('farmer_id', farmer_id);
     form.append('centre_id', centre_id);
+
+    if (milk_type) {
+      form.append('milk_type', milk_type);
+    }
 
     return http
       .post<PredictResponse>(ENDPOINTS.predict, form)
