@@ -1,5 +1,6 @@
 
 import { Menu } from 'lucide-react';
+import { USE_MOCK } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -43,6 +44,15 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           </p>
           <p className="text-xs text-slate-500">{t('tagline')}</p>
         </div>
+
+        {USE_MOCK && (
+          <span
+            className="hidden rounded-full bg-saffron-light px-2.5 py-0.5 text-xs font-semibold text-saffron-dark sm:inline"
+            title="Showing built-in demo data, not the live backend. Set VITE_USE_MOCK=false in .env to use the backend."
+          >
+            {t('demoData')}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
