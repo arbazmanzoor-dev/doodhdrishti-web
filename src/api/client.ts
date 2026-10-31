@@ -29,11 +29,16 @@ import { ENDPOINTS } from './endpoints';
 export const USE_MOCK =
   (import.meta.env.VITE_USE_MOCK ?? 'true').toLowerCase() !== 'false';
 
+const RAW_API_URL = (import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000').trim();
+
+// Hosts like Render can hand over a bare hostname ("doodhdrishti-api.onrender.com");
+// treat that as HTTPS.
 const API_BASE_URL = (
-  import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
+  /^https?:\/\//i.test(RAW_API_URL) ? RAW_API_URL : `https://${RAW_API_URL}`
 ).replace(/\/+$/, '');
 
-const REQUEST_TIMEOUT = 10000;
+// Free hosting plans sleep when idle and take up to a minute to wake, so allow for that.
+const REQUEST_TIMEOUT = 60000;
 
 // =====================================================
 // Token storage
