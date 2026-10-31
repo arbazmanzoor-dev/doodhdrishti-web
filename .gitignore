@@ -99,3 +99,14 @@ coverage/
 
 *.sqlite3-journal
 *.db-journal
+
+# Backend runtime data (created on first run; never commit)
+server/data/
+server/uploads/
+*.py[cod]
+
+# Old backend location (moved to server/ on 31 Oct)
+src/server/db.json
+
+# Build logs
+build-errors.txt

@@ -97,54 +97,48 @@ On systems where Python uses the `python3` command:
 python3 --version
 ```
 
-### 2. Backend Environment Variables
+### 2. Install the backend's packages
 
-The Python backend supports the following environment variables:
+The server uses Python's built-in web server plus Pillow (to read photos) and numpy. From the project root:
 
-| Variable | Purpose |
-|---|---|
-| `PORT` | Port on which the backend server listens |
-| `DD_DB_FILE` | Path to the JSON database file used for storing application data |
-| `DD_JWT_SECRET` | Secret key used for signing and verifying JWT authentication tokens |
-
-Example configuration:
-
-```env
-PORT=8000
-DD_DB_FILE=./db.json
-DD_JWT_SECRET=replace-with-a-long-random-secret
+```bash
+python3 -m venv server/.venv
+server/.venv/bin/pip install -r server/requirements.txt
 ```
 
-These are backend environment variables. Set them in the environment used to launch Python, or in a backend environment file if the server is configured to load one.
-
-**Security note:**
-- Use a strong, randomly generated JWT secret.
-- Never commit real secrets or private credentials to GitHub.
-- Keep local environment files out of version control.
+On Windows: `python -m venv server\.venv` then `server\.venv\Scripts\pip install -r server\requirements.txt`.
 
 ### 3. Start the Backend Server
 
-Open a terminal in the project root directory.
-
-Run:
+For local development:
 
 ```bash
-python3 server/main.py
+DD_DEV=1 server/.venv/bin/python server/main.py
 ```
 
-On Windows, if `python3` is not recognized, use:
+It listens on `http://127.0.0.1:8000`. On first start it creates `server/data/db.json` with 45 days of demo data and a demo account (`demo@doodhdrishti.in` / `demo1234`). Uploaded photos are saved in `server/uploads/`. Both folders are ignored by Git, so never commit them.
 
-```powershell
-python server/main.py
-```
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8000` | Port the server listens on |
+| `DD_JWT_SECRET` | none | Secret for signing login tokens. **Required** unless `DD_DEV=1`. Use a long random string, and never commit it. |
+| `DD_DEV` | `0` | `1` allows a built-in development secret. Local use only. |
+| `DD_DB_FILE` | `server/data/db.json` | Database file |
+| `DD_UPLOAD_DIR` | `server/uploads` | Where uploaded photos are stored |
+| `DD_TOKEN_DAYS` | `7` | How long a sign-in lasts |
 
-The default frontend backend URL is:
+Useful commands:
 
-```text
-http://127.0.0.1:8000
-```
+- `server/.venv/bin/python server/main.py --reseed` rebuilds the demo samples so they end today. Real samples and accounts are kept. The server also does this automatically on start if the demo data is more than a week old and no real tests have been saved.
+- If the database file can't be read, the server moves it to `db.json.corrupt-<time>` and stops, instead of overwriting it.
 
-Keep the backend terminal running while using the application.
+How the backend behaves:
+
+- **Accounts:** sign-up checks name, email format, an 8+ character password and the role. Passwords are stored with PBKDF2 (200,000 rounds), and emails are case-insensitive. Sign-in rejects unknown emails and wrong passwords with `401`.
+- **Tokens:** signed and expire after `DD_TOKEN_DAYS`. Any other token is rejected.
+- **Photo test:** `/predict` uses a rough brightness rule on the milk surface, the same one as the web app's demo mode. It is not a trained model, so the app labels every result "Demo result — not scientifically validated".
+- **Dates:** "today" and the date filters use India time (IST).
+- **Bad input:** a bad page number, date or milk type gets a `400` with a message, and photos over 10 MB get `413`.
 
 ### 4. Configure the Frontend to Use the Real Backend
 
@@ -176,7 +170,7 @@ cp .env.example .env     # mock mode is on by default
 npm run dev              # http://localhost:5173
 ```
 
-In mock mode, the login page accepts any email and password. Pick a role from the dropdown to see how it shows in the top bar.
+In mock mode, accounts are kept in your browser. Sign up, or use the demo account shown on the sign-in page.
 
 | Script              | What it does                         |
 | ------------------- | ------------------------------------ |
@@ -288,6 +282,23 @@ Response:
 { "token": "jwt…", "user": { "id": "u1", "name": "Priya Debnath", "email": "a@b.in", "role": "food_safety_officer", "centre_id": "c01" } }
 ```
 
+Login should reject unknown emails and wrong passwords with `401` and a `message`. The role comes from the account, so the request doesn't send one.
+
+`POST /auth/signup` (needed by the Sign up page)
+
+```json
+// request
+{ "name": "Arush Tripathi", "email": "arush@nexora.in", "password": "at-least-8-chars", "role": "food_safety_officer" }
+// response: same as login, so the new user is signed in straight away
+{ "token": "jwt…", "user": { "id": "u2", "name": "Arush Tripathi", "email": "arush@nexora.in", "role": "food_safety_officer", "centre_id": null } }
+```
+
+- `400` with a `message` for a missing name, an invalid email or a password under 8 characters.
+- `409` with a `message` when the email is already registered.
+- Store passwords hashed (e.g. `hashlib.pbkdf2_hmac`), never in plain text. Treat emails as case-insensitive.
+
+In demo mode (`VITE_USE_MOCK=true`), accounts are kept in the browser's localStorage with salted SHA-256 password hashes, and a demo account is shown on the sign-in page.
+
 ### Predict
 
 `POST /predict`
@@ -299,6 +310,7 @@ Fields:
 - `image` — uploaded image file
 - `farmer_id` — farmer identifier
 - `centre_id` — collection centre identifier
+- `milk_type` — optional: `cow`, `buffalo` or `mixed` (picked on the Test a sample page). The backend may ignore it until it stores milk type.
 
 Example response:
 
@@ -353,6 +365,7 @@ interface Sample {
   confidence: number;
   image_url: string | null;
   created_at: string;
+  milk_type?: 'cow' | 'buffalo' | 'mixed'; // optional; only on samples saved with a milk type
 }
 ```
 
