@@ -15,11 +15,10 @@ services:
         value: 3.12.7
       - key: DD_JWT_SECRET
         generateValue: true          # Render creates a random secret once and keeps it
-      - key: DD_ALLOWED_ORIGINS      # only the website below may call the API
-        fromService:
-          type: web
-          name: doodhdrishti-web
-          property: host
+      # Only the website may call the API. Public address of doodhdrishti-web.
+      # (Render's fromService "host" gives the internal name, which browsers can't use.)
+      - key: DD_ALLOWED_ORIGINS
+        value: https://doodhdrishti-web.onrender.com
 
   # React website (static build of src/)
   - type: web
@@ -36,8 +35,6 @@ services:
         value: "20"
       - key: VITE_USE_MOCK           # "false" = use the backend above; "true" = demo data in the browser
         value: "false"
+      # Public address of doodhdrishti-api. Built into the site, so changing it needs a redeploy.
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: doodhdrishti-api
-          property: host
+        value: https://doodhdrishti-api.onrender.com
