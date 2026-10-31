@@ -1,126 +1,138 @@
 
-import { useLanguage } from '../../context/LanguageContext';
 import {
+  Activity,
+  Droplets,
   FlaskConical,
   LayoutDashboard,
-  List,
-  Map,
+  LogOut,
+  MapPinned,
   Settings,
   Users,
   X,
 } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
-import { cx } from '../../lib';
-import { Logo } from '../ui/Logo';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
-const NAV = [
-  {
-    to: '/dashboard',
-    key: 'dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    to: '/test',
-    key: 'testSample',
-    icon: FlaskConical,
-  },
-  {
-    to: '/samples',
-    key: 'samples',
-    icon: List,
-  },
-  {
-    to: '/farmers',
-    key: 'farmers',
-    icon: Users,
-  },
-  {
-    to: '/map',
-    key: 'hotspotMap',
-    icon: Map,
-  },
-  {
-    to: '/settings',
-    key: 'settings',
-    icon: Settings,
-  },
-] as const;
+type SidebarProps = {
+  open?: boolean;
+  onClose?: () => void;
+};
 
-export function Sidebar({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+export function Sidebar({ open = false, onClose }: SidebarProps) {
+  const { user } = useAuth();
   const { t } = useLanguage();
+  const navigate = useNavigate();
+
+  const navItems = [
+    { label: t('dashboard'), path: '/dashboard', icon: LayoutDashboard },
+    { label: t('testSample'), path: '/test', icon: FlaskConical },
+    { label: t('samples'), path: '/samples', icon: Droplets },
+    { label: t('farmers'), path: '/farmers', icon: Users },
+    { label: t('hotspotMap'), path: '/hotspots', icon: MapPinned },
+    { label: t('settings'), path: '/settings', icon: Settings },
+  ];
+
+  function handleLogout() {
+    // Replace this with your AuthContext logout method if available.
+    navigate('/login');
+    onClose?.();
+  }
 
   return (
     <>
-      {/* Mobile menu backdrop */}
-      <div
-        className={cx(
-          'fixed inset-0 z-[1000] bg-navy-900/40 transition-opacity lg:hidden',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {open && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        />
+      )}
 
-      {/* Sidebar */}
       <aside
-        className={cx(
-          'fixed inset-y-0 left-0 z-[1001] flex w-64 flex-col bg-navy text-white transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
-          open ? 'translate-x-0' : '-translate-x-full',
-        )}
-        aria-label="Main navigation"
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-5 py-5">
-          <NavLink to="/" onClick={onClose} aria-label="DoodhDrishti home">
-            <Logo light />
+        <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
+          <NavLink
+            to="/dashboard"
+            onClick={onClose}
+            className="flex items-center gap-3"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
+              <Activity className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-serif text-lg font-bold text-slate-900">
+                DoodhDrishti
+              </p>
+              <p className="text-xs text-slate-500">{t('tagline')}</p>
+            </div>
           </NavLink>
 
           <button
             type="button"
-            className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden"
+            aria-label="Close navigation"
             onClick={onClose}
-            aria-label="Close menu"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Navigation links */}
-        <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.map(({ to, key, icon: Icon }) => (
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+          {navItems.map(({ label, path, icon: Icon }) => (
             <NavLink
-              key={to}
-              to={to}
+              key={path}
+              to={path}
               onClick={onClose}
               className={({ isActive }) =>
-                cx(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-white text-navy shadow-soft'
-                    : 'text-white/75 hover:bg-white/10 hover:text-white',
-                )
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`
               }
             >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-              <span>{t(key)}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        {/* Translated footer */}
-        <div className="m-3 rounded-2xl bg-white/10 p-4 text-xs text-white/80">
-          <p className="font-serif text-sm font-semibold text-white">
-            {t('tagline')}
-          </p>
-          <p className="mt-1">{t('teamProject')}</p>
+        <div className="border-t border-slate-100 p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 font-semibold text-purple-800">
+              {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {user?.name ?? t('profile')}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {user?.role ?? ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            {t('teamProject')}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="h-5 w-5" />
+            {t('logout')}
+          </button>
         </div>
       </aside>
     </>
   );
 }
+
+export default Sidebar;

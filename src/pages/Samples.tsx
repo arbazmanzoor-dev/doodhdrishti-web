@@ -1,3 +1,4 @@
+
 import { ChevronLeft, ChevronRight, Download, Loader2, Search, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, toApiError } from '../api/client';
@@ -10,6 +11,7 @@ import { Input, Label, Select } from '../components/ui/Field';
 import { PageHeader } from '../components/ui/PageHeader';
 import { EmptyState, ErrorState, Skeleton } from '../components/ui/States';
 import { samplesToCsv, downloadText } from '../csv';
+import { useLanguage } from '../context/LanguageContext';
 import { useAsync } from '../hooks/useAsync';
 import { useDebounce } from '../hooks/useDebounce';
 import { VERDICT_LABEL, isoDay } from '../lib';
@@ -18,6 +20,7 @@ import type { Sample, SampleQuery, Verdict } from '../types';
 const PAGE_SIZE = 15;
 
 export default function Samples() {
+  const { t } = useLanguage();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [centreId, setCentreId] = useState('');
@@ -25,7 +28,6 @@ export default function Samples() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const q = useDebounce(search, 300);
-
   const [selected, setSelected] = useState<Sample | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -40,7 +42,6 @@ export default function Samples() {
   };
   const key = JSON.stringify(query);
 
-  // Any filter change sends you back to page 1.
   useEffect(() => setPage(1), [key]);
 
   const list = useAsync(() => api.listSamples({ ...query, page, page_size: PAGE_SIZE }), [key, page]);
@@ -72,49 +73,49 @@ export default function Samples() {
   return (
     <>
       <PageHeader
-        title="Samples"
-        subtitle={list.data ? `${total.toLocaleString('en-IN')} samples match` : 'All tested milk samples'}
+        title={t('samplesTitle')}
+        subtitle={list.data ? `${total.toLocaleString('en-IN')} ${t('samplesMatch')}` : t('allTestedSamples')}
         action={
           <Button variant="outline" onClick={exportCsv} disabled={exporting || total === 0}>
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} {t('exportCSV')}
           </Button>
         }
       />
-      {exportError && <p className="mb-4 text-sm text-adulterated" role="alert">Export failed: {exportError}</p>}
+      {exportError && <p className="mb-4 text-sm text-adulterated" role="alert">{t('exportFailed')}: {exportError}</p>}
 
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-[1.4fr_1fr_1fr_1.3fr_1fr_auto] lg:items-end">
           <div className="col-span-2 lg:col-span-1">
-            <Label htmlFor="q">Search farmer</Label>
+            <Label htmlFor="q">{t('searchFarmer')}</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input id="q" placeholder="Name or ID" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input id="q" placeholder={t('nameOrId')} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
           <div>
-            <Label htmlFor="from">From</Label>
+            <Label htmlFor="from">{t('from')}</Label>
             <Input id="from" type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="to">To</Label>
+            <Label htmlFor="to">{t('to')}</Label>
             <Input id="to" type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="centre">Centre</Label>
+            <Label htmlFor="centre">{t('centre')}</Label>
             <Select id="centre" value={centreId} onChange={(e) => setCentreId(e.target.value)}>
-              <option value="">All centres</option>
+              <option value="">{t('allCentres')}</option>
               {centres.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </div>
           <div>
-            <Label htmlFor="verdict">Verdict</Label>
+            <Label htmlFor="verdict">{t('verdict')}</Label>
             <Select id="verdict" value={verdict} onChange={(e) => setVerdict(e.target.value as Verdict | '')}>
-              <option value="">All verdicts</option>
-              {(Object.keys(VERDICT_LABEL) as Verdict[]).map((v) => <option key={v} value={v}>{VERDICT_LABEL[v]}</option>)}
+              <option value="">{t('allVerdicts')}</option>
+              {(Object.keys(VERDICT_LABEL) as Verdict[]).map((v) => <option key={v} value={v}>{v === 'pure' ? t('pure') : v === 'suspicious' ? t('suspicious') : t('adulterated')}</option>)}
             </Select>
           </div>
           <Button variant="ghost" onClick={clear} disabled={!hasFilters} className="col-span-2 justify-self-start lg:col-span-1">
-            <X className="h-4 w-4" /> Clear
+            <X className="h-4 w-4" /> {t('clear')}
           </Button>
         </div>
       </Card>
@@ -125,26 +126,26 @@ export default function Samples() {
         ) : list.loading && !list.data ? (
           <div className="space-y-2 p-5">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>
         ) : list.data && list.data.items.length === 0 ? (
-          <EmptyState title="No samples match these filters">Try widening the date range or clearing filters.</EmptyState>
+          <EmptyState title={t('noSamples')}>{t('widenDateRange')}</EmptyState>
         ) : (
           <div className={list.loading ? 'opacity-60 transition-opacity' : ''}>
             <SamplesTable rows={list.data?.items ?? []} onRowClick={setSelected} />
           </div>
         )}
         <div className="flex items-center justify-between gap-3 border-t border-lavender px-4 py-3 text-sm sm:px-5">
-          <span className="text-slate-500">Page {page} of {pages}</span>
+          <span className="text-slate-500">{t('page')} {page} {t('of')} {pages}</span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page <= 1 || list.loading} aria-label="Previous page">
-              <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">Prev</span>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page <= 1 || list.loading} aria-label={t('previous')}>
+              <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">{t('previous')}</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= pages || list.loading} aria-label="Next page">
-              <span className="hidden sm:inline">Next</span> <ChevronRight className="h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= pages || list.loading} aria-label={t('next')}>
+              <span className="hidden sm:inline">{t('next')}</span> <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </Card>
 
-      <Drawer open={Boolean(selected)} onClose={() => setSelected(null)} title="Sample detail">
+      <Drawer open={Boolean(selected)} onClose={() => setSelected(null)} title={t('sampleDetail')}>
         {selected && <SampleDetail sample={selected} />}
       </Drawer>
     </>
