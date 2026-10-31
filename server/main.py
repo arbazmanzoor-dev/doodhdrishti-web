@@ -39,6 +39,13 @@ DEV_MODE = os.environ.get("DD_DEV", "0") == "1"
 TOKEN_DAYS = int(os.environ.get("DD_TOKEN_DAYS", "7"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_JSON_BYTES = 64 * 1024
+# Comma-separated website origins allowed to call the API, e.g. "https://doodhdrishti-web.onrender.com".
+# Empty or "*" allows any origin (fine for local development).
+ALLOWED_ORIGINS = {
+    (o if o == "*" or "://" in o else f"https://{o}")  # bare hostnames (as Render provides them) mean HTTPS
+    for o in (x.strip().rstrip("/") for x in os.environ.get("DD_ALLOWED_ORIGINS", "*").split(","))
+    if o
+}
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ROLES = {"centre_operator", "cooperative_admin", "food_safety_officer"}
@@ -476,7 +483,13 @@ class DoodhDrishtiHandler(BaseHTTPRequestHandler):
 
     # -- responses --
     def _send_cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        if not ALLOWED_ORIGINS or "*" in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        else:
+            origin = (self.headers.get("Origin") or "").rstrip("/")
+            if origin in ALLOWED_ORIGINS:
+                self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept")
 
@@ -493,8 +506,11 @@ class DoodhDrishtiHandler(BaseHTTPRequestHandler):
         self._send_json(status, {"message": message, "detail": message})
 
     def _base_url(self) -> str:
-        host = self.headers.get("Host") or f"localhost:{PORT}"
-        return f"http://{host}"
+        # Behind a hosting proxy (Render, etc.) the browser talks HTTPS to the proxy;
+        # use the forwarded scheme/host so photo links aren't blocked as mixed content.
+        proto = (self.headers.get("X-Forwarded-Proto") or "http").split(",")[0].strip()
+        host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or f"localhost:{PORT}").split(",")[0].strip()
+        return f"{proto}://{host}"
 
     def _out(self, sample: Dict[str, Any]) -> Dict[str, Any]:
         """Sample as sent to the client: absolute photo URL, demo picture if none, internal fields removed."""
@@ -560,6 +576,13 @@ class DoodhDrishtiHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         self._dispatch(self._get)
+
+    def do_HEAD(self) -> None:
+        # Uptime checks often use HEAD; answer the health route without a body.
+        path = urllib.parse.urlparse(self.path).path.rstrip("/") or "/"
+        self.send_response(200 if path in ("/", "/health") else 404)
+        self._send_cors()
+        self.end_headers()
 
     def do_POST(self) -> None:
         # Receive the (possibly large) upload before taking the lock, so one slow
