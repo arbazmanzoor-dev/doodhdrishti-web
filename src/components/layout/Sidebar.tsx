@@ -10,6 +10,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -20,27 +21,70 @@ type SidebarProps = {
 };
 
 export function Sidebar({ open = false, onClose }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
 
+  // Navigation items
   const navItems = [
-    { label: t('dashboard'), path: '/dashboard', icon: LayoutDashboard },
-    { label: t('testSample'), path: '/test', icon: FlaskConical },
-    { label: t('samples'), path: '/samples', icon: Droplets },
-    { label: t('farmers'), path: '/farmers', icon: Users },
-    { label: t('hotspotMap'), path: '/hotspots', icon: MapPinned },
-    { label: t('settings'), path: '/settings', icon: Settings },
+    {
+      label: t('dashboard'),
+      path: '/dashboard',
+      icon: LayoutDashboard,
+    },
+    {
+      label: t('testSample'),
+      path: '/test',
+      icon: FlaskConical,
+    },
+    {
+      label: t('samples'),
+      path: '/samples',
+      icon: Droplets,
+    },
+    {
+      label: t('farmers'),
+      path: '/farmers',
+      icon: Users,
+    },
+    {
+      label: t('hotspotMap'),
+      path: '/hotspots',
+      icon: MapPinned,
+    },
+    {
+      label: t('settings'),
+      path: '/settings',
+      icon: Settings,
+    },
   ];
 
+  // Role names
+  // Direct strings avoid unsupported translation keys.
+  const roleLabel =
+    user?.role === 'cooperative_admin'
+      ? 'Cooperative Admin'
+      : user?.role === 'centre_operator'
+        ? 'Centre Operator'
+        : user?.role === 'food_safety_officer'
+          ? 'Food Safety Officer'
+          : user?.role ?? '';
+
+  // Logout handler
   function handleLogout() {
-    // Replace this with your AuthContext logout method if available.
-    navigate('/login');
+    // Clear token and user session.
+    logout();
+
+    // Close mobile sidebar.
     onClose?.();
+
+    // Redirect to login.
+    navigate('/login', { replace: true });
   }
 
   return (
     <>
+      {/* Mobile background overlay */}
       {open && (
         <button
           type="button"
@@ -50,11 +94,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         />
       )}
 
+      {/* Main sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
+        {/* Logo and brand */}
         <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
           <NavLink
             to="/dashboard"
@@ -64,14 +110,19 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700">
               <Activity className="h-6 w-6" />
             </div>
+
             <div>
               <p className="font-serif text-lg font-bold text-slate-900">
                 DoodhDrishti
               </p>
-              <p className="text-xs text-slate-500">{t('tagline')}</p>
+
+              <p className="text-xs text-slate-500">
+                {t('tagline')}
+              </p>
             </div>
           </NavLink>
 
+          {/* Mobile close button */}
           <button
             type="button"
             aria-label="Close navigation"
@@ -82,6 +133,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </button>
         </div>
 
+        {/* Navigation links */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
           {navItems.map(({ label, path, icon: Icon }) => (
             <NavLink
@@ -102,32 +154,39 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           ))}
         </nav>
 
+        {/* User profile and logout */}
         <div className="border-t border-slate-100 p-4">
+
+          {/* User information */}
           <div className="mb-3 flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 font-semibold text-purple-800">
               {user?.name?.charAt(0)?.toUpperCase() ?? 'U'}
             </div>
+
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-900">
                 {user?.name ?? t('profile')}
               </p>
+
               <p className="truncate text-xs text-slate-500">
-                {user?.role ?? ''}
+                {roleLabel}
               </p>
             </div>
           </div>
 
+          {/* Team project */}
           <div className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
             {t('teamProject')}
           </div>
 
+          {/* Logout button */}
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-red-600 hover:bg-red-50"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-300"
           >
-            <LogOut className="h-5 w-5" />
-            {t('logout')}
+            <LogOut className="h-5 w-5 shrink-0" />
+            <span>{t('logout')}</span>
           </button>
         </div>
       </aside>
