@@ -38,6 +38,7 @@ export default function App() {
         {/* Public pages */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Login />} />
 
         {/* Protected application pages */}
         <Route element={<ProtectedRoute />}>
@@ -48,6 +49,8 @@ export default function App() {
             <Route path="/farmers" element={<Farmers />} />
             <Route path="/farmers/:id" element={<FarmerDetail />} />
             <Route path="/hotspots" element={<HotspotMap />} />
+            {/* Old address of the map page, kept so bookmarks and shared links still work */}
+            <Route path="/map" element={<Navigate to="/hotspots" replace />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>

@@ -61,6 +61,8 @@ export interface Sample {
   confidence: number;
   image_url: string | null;
   created_at: string;
+  /** Set for samples tested after milk type was added; older samples don't have it. */
+  milk_type?: MilkType;
 }
 
 // ---------- API payloads ----------
@@ -72,15 +74,32 @@ export interface LoginRequest {
   role?: Role;
 }
 
+export interface SignupRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
 }
 
+export type MilkType = 'cow' | 'buffalo' | 'mixed';
+
+export const MILK_TYPE_LABELS: Record<MilkType, string> = {
+  cow: 'Cow',
+  buffalo: 'Buffalo',
+  mixed: 'Mixed',
+};
+
 export interface PredictRequest {
   image: File;
   farmer_id: string;
   centre_id: string;
+  /** Optional; backends that don't use it ignore the extra form field. */
+  milk_type?: MilkType;
 }
 
 export interface PredictResponse {
