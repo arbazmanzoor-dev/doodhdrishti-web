@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { formatDateTime } from '../lib';
-import type { Sample } from '../types';
+import { MILK_TYPE_LABELS, type Sample } from '../types';
 import { ConfidenceBar } from './ui/ConfidenceBar';
 import { VerdictBadge } from './ui/VerdictBadge';
 
@@ -10,6 +10,7 @@ export function SampleDetail({ sample }: { sample: Sample }) {
     ['Tested', formatDateTime(sample.created_at)],
     ['Farmer', <Link key="f" to={`/farmers/${sample.farmer_id}`} className="font-medium text-purple hover:text-navy">{sample.farmer_name}</Link>],
     ['Centre', sample.centre_name],
+    ...(sample.milk_type ? ([['Milk type', MILK_TYPE_LABELS[sample.milk_type]]] as [string, React.ReactNode][]) : []),
     ['Water', `${sample.water_pct.toFixed(1)}%`],
     ['Starch', `${sample.starch_pct.toFixed(1)}%`],
   ];
