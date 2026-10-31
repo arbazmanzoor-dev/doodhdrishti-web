@@ -1,0 +1,42 @@
+# DoodhDrishti ML pipeline settings. Paths are relative to this file.
+paths:
+  raw_dir: data/raw
+  labels_csv: data/labels.csv
+  features_csv: outputs/features.csv
+  roi_debug_dir: outputs/roi_debug
+  outputs_dir: outputs
+  model_file: models/doodhdrishti.joblib
+
+roi:
+  # Longest image side is resized to this before processing, so every phone is treated alike.
+  work_size: 800
+  blur_kernel: 21            # odd number; Gaussian blur before thresholding
+  inner_radius_frac: 0.70    # keep this fraction of the fitted radius (avoids container edge)
+  glare_percentile: 99       # pixels brighter than this percentile are masked as glare/bubbles
+  min_area_frac: 0.01        # reject detections smaller than this fraction of the image
+  # Manual fallback crop, used when auto-detection fails. Fractions of width/height,
+  # e.g. {x: 0.3, y: 0.3, w: 0.4, h: 0.4}. Per-file overrides go under manual_crops.
+  manual_crop: null
+  manual_crops: {}
+  #   cow_w0_s0_phoneA_r1_01.jpg: {x: 0.35, y: 0.30, w: 0.30, h: 0.30}
+
+reference_strip:
+  # Optional white/black calibration patches in every photo (fractions of width/height).
+  # When both are set, colour channels are normalised as (value - black) / (white - black).
+  enabled: false
+  white: null   # {x: 0.05, y: 0.05, w: 0.05, h: 0.05}
+  black: null
+
+labels:
+  pure_max_water_pct: 5      # verdict Pure when water < this ...
+  pure_max_starch_pct: 0     # ... and starch <= this
+  min_water_levels: 2        # data sufficiency: distinct water levels needed to train
+  # Hackathon prototype (31 Oct): lowered to 1 because each level has one pour so far.
+  # Set back to 2 once every level has two pours, for a trustworthy evaluation.
+  min_samples_per_level: 1   # data sufficiency: distinct samples (glasses) per level
+
+model:
+  version: 0.1.0
+  n_estimators: 300
+  random_state: 42
+  n_splits: 5                # GroupKFold splits (reduced automatically for small data)
