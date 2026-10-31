@@ -172,72 +172,27 @@ Run:
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env     # mock mode is on by default
+npm run dev              # http://localhost:5173
 ```
 
-Open the localhost URL displayed by Vite.
+In mock mode, the login page accepts any email and password. Pick a role from the dropdown to see how it shows in the top bar.
 
-### 6. Run Both Services Together
+| Script              | What it does                         |
+| ------------------- | ------------------------------------ |
+| `npm run dev`       | Vite dev server with HMR             |
+| `npm run build`     | Type-check (`tsc -b`) + production build to `dist/` |
+| `npm run typecheck` | Type-check only                      |
+| `npm run preview`   | Serve the production build           |
 
-You must keep both services running when using the real backend.
+## Environment variables
 
-| Service | Command | Default address |
-|---|---|---|
-| Backend | `python3 server/main.py` | `http://127.0.0.1:8000` |
-| Frontend | `npm run dev` | `http://localhost:5173` |
+| Variable        | Default                 | Purpose |
+| --------------- | ----------------------- | ------- |
+| `VITE_API_URL`  | `http://localhost:8000` | Base URL of the backend API |
+| `VITE_USE_MOCK` | `true`                  | `true` serves every request from the in-browser mock in `src/mocks`. Set it to `false` to call `VITE_API_URL`. |
 
-**Terminal 1 — Backend**
-
-```bash
-python3 server/main.py
-```
-
-**Terminal 2 — Frontend**
-
-```bash
-npm run dev
-```
-
-### 7. Backend Troubleshooting
-
-**Problem: Frontend still displays mock data**
-
-Check:
-
-- `VITE_USE_MOCK=false` is present in the frontend `.env`.
-- `VITE_API_URL` points to the correct backend address.
-- The frontend development server was restarted after changing `.env`.
-
-**Problem: Backend connection failed**
-
-Check:
-
-- The Python server is running.
-- The backend is listening on the expected port.
-- The frontend API URL matches the backend address.
-- The browser console and backend terminal do not show connection errors.
-
-**Problem: Authentication errors**
-
-Check:
-
-- `DD_JWT_SECRET` is configured.
-- The backend authentication endpoint is responding.
-- The frontend is sending the expected authentication token.
-
-**Problem: Database errors**
-
-Check:
-
-- `DD_DB_FILE` points to the correct database location.
-- The backend has permission to read and write the database file.
-- The directory containing the database file exists.
-
-**Development note:** Mock mode is intended for frontend development and demonstrations. Use `VITE_USE_MOCK=false` when testing integration with the actual backend.
-
----
-
-## Mock Mode
+## Mock mode
 
 `src/mocks/data.ts` builds a fixed, seeded dataset:
 
@@ -267,17 +222,17 @@ Two important details:
 
 ## Pages
 
-| Route | Access | Contents |
-|---|---|---|
-| `/` | Public | Hero, how it works, the science, impact, team, footer |
-| `/login` | Public | Email, password, role. JWT is kept in memory and `localStorage`. |
-| `/dashboard` | Protected | KPI cards, 30-day tested-vs-adulterated trend, average water % by centre, latest 10 tests |
-| `/test` | Protected | Drag-and-drop or capture a photo, pick centre and farmer, see result card, save to record |
-| `/samples` | Protected | Filters (date range, centre, verdict, farmer search), pagination, CSV export, detail drawer |
-| `/farmers` | Protected | Farmer list with % pure, last test, and a water % sparkline. Sortable. |
-| `/farmers/:id` | Protected | Stats, quality history chart, full test table |
-| `/map` | Protected | Leaflet map with markers coloured by adulteration rate and sized by volume, plus a ranked centre list |
-| `/settings` | Protected | Profile, language picker (English, Hindi, Kannada), connection information |
+| Route          | Access    | Contents |
+| -------------- | --------- | -------- |
+| `/`            | public    | Hero, how it works, the science, impact, team, footer |
+| `/login`       | public    | Email, password, role. The JWT is kept in memory and in `localStorage`. |
+| `/dashboard`   | protected | KPI cards, 30-day tested-vs-adulterated trend, average water % by centre, latest 10 tests |
+| `/test`        | protected | Drag-and-drop or capture a photo, pick centre and farmer, see the result card, save to record |
+| `/samples`     | protected | Filters (date range, centre, verdict, farmer search), pagination, CSV export, detail drawer |
+| `/farmers`     | protected | Farmer list with % pure, last test, and a water % sparkline. Sortable. |
+| `/farmers/:id` | protected | Stats, quality history chart, full test table |
+| `/map`         | protected | Leaflet map with markers coloured by adulteration rate and sized by volume, plus a ranked centre list |
+| `/settings`    | protected | Profile, language picker (English, Hindi, Kannada; placeholder for now), connection info |
 
 A `401` response from the real API logs the user out and sends them back to `/login`.
 
@@ -327,16 +282,10 @@ Request:
 Response:
 
 ```json
-{
-  "token": "jwt...",
-  "user": {
-    "id": "u1",
-    "name": "Priya Debnath",
-    "email": "a@b.in",
-    "role": "food_safety_officer",
-    "centre_id": "c01"
-  }
-}
+// request
+{ "email": "a@b.in", "password": "…" }
+// response
+{ "token": "jwt…", "user": { "id": "u1", "name": "Priya Debnath", "email": "a@b.in", "role": "food_safety_officer", "centre_id": "c01" } }
 ```
 
 ### Predict
